@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+. ../lib/bash-bmp || exit
+
+# Declare an associative array that contains the color for a specific char, if it is defined in the pallete else white
+declare -A PALLETE
+
+debug () {
+  echo '[debug]' "$@" >&2
+}
+
+makeBmp(){
+
+  # Create a SPRITE variable and fill it from stdin
+  local SPRITE
+  mapfile -t SPRITE
+
+  # initialize the width to 0
+  local width=0
+
+  # iterate through every line and compare the width this is important because we need the max width to render the whole sprite
+
+  for i in "${!SPRITE[@]}"; do
+    if (( ${#SPRITE[$i]} > width )); then
+      width=${#SPRITE[$i]}
+    fi
+  done
+
+  # the height is the amount of elements in the array
+  local height=${#SPRITE[@]}
+
+  bmpHeader "$width" "$height"
+
+  # The padding can't be returned to stdout as that is where our bit data goes so we save it in a global variable REPLY
+  local padding=$REPLY
+
+  # We draw each line and color it in the color provided in our PALLETE array
+  for ((y = 0; y < height; y++)); do
+    for ((x = 0; x < width; x++)); do
+      local c=${SPRITE[$((height - y - 1))]}
+      c=${c:x:1}
+      [[ -z "$c" ]] && c=' '   # fallback if sprite line is shorter than width
+
+      local r g b
+
+      # if there is a color for the char then read it into r, g and b
+      # else set them to the default value 0
+      if [[ -n "${PALLETE["$c"]}" ]]; then
+        read -r r g b <<< "${PALLETE["$c"]}"
+      else
+        r=0
+        g=0
+        b=0
+      fi
+
+      bmpRGB "$r" "$g" "$b"
+    done
+    # fill the rest of the rows up if necessary
+    bmpPadding "$padding"
+    debug "handled row $y/$height"
+  done
+}
+
+hex2rgb(){
+  # convert hex numbers into rgb values
+  local hex="${1#\#}"
+  local r=$((16#${hex:0:2}))
+  local g=$((16#${hex:2:2}))
+  local b=$((16#${hex:4:2}))
+
+  echo "$r $g $b"
+
+}
+
+load-pallete(){
+  local file="$1"
+  local lines
+  # read the pallete in from the argument passed
+  mapfile -t lines < "$file" || exit
+  for line in "${lines[@]}"; do
+    local c hex
+    # first char is what is to be colored
+    c=${line:0:1}
+    # a space between and then from the 2 char to the end of the line is the hex value
+    hex=${line:2}
+    #Assign the character
+    # 0 #FFFFFF
+    PALLETE["$c"]=$(hex2rgb "$hex")
+  done
+}
+
+main (){
+  # set default values for output and pallete files
+  local output=out.bmp
+  local palette=pallete.txt
+
+  # accept flags o for output and p for pallete
+  local OPTIND OPTARG opt
+  while getopts 'p:o:' opt; do
+    case "$opt" in
+      o) output=$OPTARG;;
+      p) palette=$OPTARG;;
+    esac
+  done
+
+  # execute logic
+  #   check if pallete exists if yes load pallete into PALLETE
+  #   finally create your BITMAP and stream it into output
+  [[ -n $palette ]] || exit
+  load-pallete "$palette"
+  makeBmp > "$output" || exit
+}
+
+main "$@"

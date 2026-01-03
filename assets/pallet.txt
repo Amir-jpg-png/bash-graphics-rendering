@@ -1,0 +1,5 @@
+O #FFFF00
+o #FFFF00
+  #000000
+- #FFFF00
+* #FFFF00

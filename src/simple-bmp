@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+# Emits a very simple Bit Map file to stdout
+
+. ./lib/bash-bmp || exit
+
+main (){
+  local width=2
+  local height=2
+
+  bmpHeader "$width" "$height"
+  local padding=$REPLY
+
+  ## Color Data
+  bmpRGB 0 0 0
+  bmpRGB 255 255 255
+  bmpPadding "$padding"
+
+  bmpRGB 255 0 0
+  bmpRGB 0 0 255
+  bmpPadding "$padding"
+
+}
+
+main

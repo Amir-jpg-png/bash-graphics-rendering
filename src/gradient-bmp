@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+# Emits a very simple Bit Map file to stdout
+
+. ../lib/bash-bmp || exit
+
+debug () {
+  echo '[debug]' "$@" >&2
+}
+
+makeBmp(){
+  local width="$1"
+  local height="$2"
+
+  bmpHeader "$width" "$height"
+  local padding=$REPLY
+
+  local r g b=0
+
+  #iterate through every row and trhough every column
+  # calculate color
+  #   green gets stronger the higher y gets and in bmps (i think) height begins at max and goes down meaning green is strongest top left and weakets bottom right
+  #   red gets stronger the further it is along the x axis
+  for ((y = 0; y < height; y++)); do
+    for ((x = 0; x < width; x++)); do
+      ((r = x * 255 / width))
+      ((g = y * 255 / height))
+      bmpRGB "$r" "$g" "$b"
+    done
+    bmpPadding "$padding"
+    debug "handled row $y/$height"
+  done
+}
+
+main (){
+  local width=400
+  local height=400
+  local output=out.bmp
+
+  local OPTIND OPTARG opt
+  while getopts 'w:h:o:' opt; do
+    case "$opt" in
+      w) width=$OPTARG;;
+      h) height=$OPTARG;;
+      o) output=$OPTARG;;
+    esac
+  done
+  makeBmp "$width" "$height" > "$output" || exit
+  echo "generated ${width}x$height image: $output"
+}
+
+main "$@"

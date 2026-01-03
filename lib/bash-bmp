@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+
+#takes a number and returns a 32bit little endian, as raw bytes to stdout
+u32le(){
+  local n=$1 out
+
+  #convert number inot 4 octets
+  # ex: input = 0x12345678
+  # oc1: 0x12
+  # oc2: 0x34
+  # oc3: 0x56
+  # oc4: 0x78
+  #
+
+  local octet1=$(( ( n >> 24) & 0xFF))
+  local octet2=$(( (n >> 16) & 0xFF))
+  local octet3=$(( (n >> 8) & 0xFF))
+  local octet4=$(( (n >> 0) & 0xFF))
+
+  printf -v out '\\x%02x\\x%02x\\x%02x\\x%02x' \
+    "$octet4" \
+    "$octet3" \
+    "$octet2" \
+    "$octet1"
+  printf '%b' "$out"
+}
+
+
+#takes a number and returns a 16bit little endian, as raw bytes to stdout
+u16le(){
+  local n=$1 out
+
+  #convert number into 2 octets
+  # ex: input = 0x12345678
+  # oc1: 0x12
+  # oc2: 0x34
+
+  local octet1=$(( (n >> 8) & 0xFF))
+  local octet2=$(( (n >> 0) & 0xFF))
+
+  printf -v out '\\x%02x\\x%02x' \
+    "$octet2" \
+    "$octet1"
+  printf '%b' "$out"
+
+}
+
+#Params:
+#   r=RED, g=GREEN, b=BLUE
+# Desc: Takes three numbers as values for r, g and b in that order reverses it and returns bgr as raw bytes to stdout
+# Returns: bgr as raw bytes to stdout
+bmpRGB(){
+  local r=$1
+  local g=$2
+  local b=$3
+  local out
+
+  printf -v out '\\x%02x\\x%02x\\x%02x' \
+    "$b" \
+    "$g" \
+    "$r"
+  printf '%b' "$out"
+}
+
+# Params: width, height
+# Desc: takes a width and a height, calculates and sets default values for the bmp header, returns the bitmap header as raw bytes to stdout
+bmpHeader() {
+  local width=$1
+  local height=$2
+
+  # Full Color range
+  local bits_per_px=24
+  local bytes_per_px=$((bits_per_px / 8))
+
+  local row_size=$((width * bytes_per_px))
+
+  # Bitmaps require the row size to be a multiple of 4 if that requirement isn't met we have to fill the row with 0s
+  local padding=0
+
+  # While row is not a multiple of 4 we increase the padding
+  while ((row_size % 4 != 0)); do
+    ((padding++))
+    ((row_size++))
+  done
+
+  # the size in bytes per row * how many rows we have
+  local pixel_data_size=$((row_size * height))
+  # Predefined 14 bytes for Header 40 bytes for info header
+  local pixel_data_offset=$((14+40))
+
+  # we need the total file size for the Bitmap Header
+  # Our actual pixel data plus our data offset (Header+InfoHeader)
+  local file_size=$((pixel_data_size + pixel_data_offset))
+
+  # Header (14 Bytes)
+
+  ##HeaderField (2 byte)
+  # Used to identify that the file is a bitmap file always BM
+  printf 'BM'
+
+  ## FileSize (4 byte)
+  # file_size does not have 4 bytes but u32le always returns 4 bytes and fills the rest with 0s
+  u32le "$file_size"
+
+  ## Reserves (4 byte) (2x2)
+  # 0 as it is created manually
+  u32le 0
+
+  ## DataOffset (4 byte)
+  # How many bytes until the pixel data so the data to be drawn begins
+  u32le "$pixel_data_offset"
+
+  # InfoHeader (40 byte)
+  ## Size (4 byte)
+  # Defines how big the InfoHeader is alway the same
+  u32le 40
+
+  ## width(4 byte)
+  u32le "$width"
+
+  ## height(4 byte)
+  u32le "$height"
+
+  ## planes(2 byte)
+  # Number of color planes always 1
+  u16le 1
+
+  ## BitCount(2 byte)
+  # Number of bits_per_px
+  u16le "$bits_per_px"
+
+  ######### In complexer bitmaps the following will have real values here as we don't need it we always set these fields to 0 bytes ##########
+
+  ## Compression
+  u32le 0
+
+  ## ImageSize
+  u32le 0
+
+  ## XPixels/M
+  u32le 0
+
+  ## YPixels/M
+  u32le 0
+
+  ## ColorsUsed
+  u32le 0
+
+  ## ColorsImportant
+  u32le 0
+
+  REPLY="$padding"
+}
+
+# Accepts the padding as a paramter and prints \0 padding times
+bmpPadding (){
+  local padding=$1
+
+  for ((i = 0; i < padding; i++)); do
+    printf '\0'
+  done
+
+}
